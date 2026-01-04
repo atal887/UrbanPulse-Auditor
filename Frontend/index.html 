@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UrbanPulse: Delhi's Live Energy Harvest Dashboard</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    body {
+      background-color: #02030a;
+      color: #f5f5f7;
+    }
+
+    .app-window {
+      width: 100vw;
+      height: 100vh;
+      background-color: #111217;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top title bar (fake browser) */
+    .titlebar {
+      height: 40px;
+      background-color: #111217;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid #23242b;
+      color: #d0d0d5;
+      font-size: 13px;
+    }
+
+    .titlebar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .traffic-lights {
+      display: flex;
+      gap: 6px;
+    }
+
+    .traffic-lights span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .traffic-lights span:nth-child(1) { background-color: #ff5f57; }
+    .traffic-lights span:nth-child(2) { background-color: #febc2e; }
+    .traffic-lights span:nth-child(3) { background-color: #28c840; }
+
+    .titlebar-center {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      color: #bcbcc4;
+    }
+
+    /* Main layout */
+    .main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr) 360px;
+      grid-template-rows: minmax(0, 1fr);
+      background-color: #070810;
+    }
+
+    /* Left rail */
+    .left-rail {
+      background: linear-gradient(180deg, #10111b 0%, #050712 100%);
+      border-right: 1px solid #23242b;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .logo-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #181927;
+      border-radius: 999px;
+      color: #d6e0ff;
+      font-size: 11px;
+    }
+
+    .logo-pill span:first-child {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: conic-gradient(#2ecc71, #3498db, #e67e22, #e74c3c, #2ecc71);
+    }
+
+    .rail-section-title {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 10px;
+      color: #8b8fa3;
+      margin-bottom: 6px;
+    }
+
+    .metric-card {
+      background: radial-gradient(circle at top left, #202336 0, #11121d 40%);
+      border-radius: 14px;
+      padding: 10px 12px;
+      border: 1px solid #27293a;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: #a5a9c2;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f5f5ff;
+    }
+
+    .metric-sub {
+      font-size: 11px;
+      color: #7e819b;
+    }
+
+    .metric-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      margin-right: 6px;
+      display: inline-block;
+    }
+
+    .metric-dot.green { background-color: #30e39a; }
+    .metric-dot.blue  { background-color: #00c4ff; }
+    .metric-dot.red   { background-color: #ff7b5c; }
+
+    /* Center map + bottom charts */
+    .center-area {
+      position: relative;
+      overflow: hidden;
+      background-color: #050812;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      filter: grayscale(1) contrast(1.2) brightness(0.8);
+    }
+
+    .map-overlay-title {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      background: rgba(5, 7, 20, 0.85);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: #dadcf5;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .bottom-panel {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 16px;
+      width: 78%;
+      background: rgba(8, 9, 22, 0.96);
+      border-radius: 18px;
+      padding: 12px 16px 14px 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: grid;
+      grid-template-columns: 40% 60%;
+      gap: 12px;
+    }
+
+    .bottom-card-title {
+      font-size: 12px;
+      color: #b2b5d5;
+      margin-bottom: 6px;
+    }
+
+    .chart-container {
+      background: #101220;
+      border-radius: 14px;
+      padding: 10px 10px 6px 10px;
+      border: 1px solid #222537;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 120px !important;
+    }
+
+    /* Right session panel */
+    .right-panel {
+      background: linear-gradient(180deg, #10111b 0%, #070713 100%);
+      border-left: 1px solid #23242b;
+      padding: 16px 16px 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .session-preview {
+      width: 100%;
+      height: 140px;
+      border-radius: 16px;
+      background: #050709;
+      border: 1px solid #292b3c;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555a6f;
+      font-size: 12px;
+    }
+
+    .session-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 6px;
+      margin-bottom: 4px;
+    }
+
+    .session-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f2f2ff;
+    }
+
+    .session-sub {
+      font-size: 11px;
+      color: #878ba5;
+    }
+
+    .score-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .score-pill {
+      flex: 1;
+      background: #111321;
+      border-radius: 12px;
+      padding: 8px 8px;
+      border: 1px solid #252739;
+    }
+
+    .score-label {
+      font-size: 11px;
+      color: #a0a3c0;
+    }
+
+    .score-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f5f6ff;
+    }
+
+    .score-tag {
+      font-size: 11px;
+      color: #88ffb2;
+    }
+
+    .meta-row {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: #8b8fb0;
+      margin-top: 6px;
+    }
+
+    .verification-section {
+      margin-top: 8px;
+      background: #0d0f1c;
+      border-radius: 14px;
+      padding: 10px 10px;
+      border: 1px solid #252739;
+    }
+
+    .verification-title {
+      font-size: 12px;
+      color: #b2b5d5;
+      margin-bottom: 6px;
+    }
+
+    .verification-list {
+      list-style: decimal;
+      margin-left: 16px;
+      color: #8f93b2;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .panel-footer {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #8e92a8;
+    }
+
+    .btn {
+      border-radius: 999px;
+      padding: 7px 12px;
+      border: 1px solid #303551;
+      background: #111321;
+      color: #e4e5ff;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #5a8cff, #9b6bff);
+      border-color: transparent;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+<div class="app-window">
+  <!-- Fake browser title bar -->
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <div class="traffic-lights">
+        <span></span><span></span><span></span>
+      </div>
+      <span>Google Gemini</span>
+    </div>
+    <div class="titlebar-center">
+      UrbanPulse: Delhi's Live Energy Harvest Dashboard
+    </div>
+    <div style="width:120px;text-align:right;font-size:12px;color:#8f93aa;">
+      28 maps
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- Left rail -->
+    <aside class="left-rail">
+      <div class="logo-pill">
+        <span></span>
+        <span>Flowvibes Kinetic Sensor Network</span>
+      </div>
+
+      <div>
+        <div class="rail-section-title">Network snapshot</div>
+        <div class="metric-card">
+          <div class="metric-label">Total Harvest Potential</div>
+          <div class="metric-value">4,500 MW</div>
+          <div class="metric-sub">Current Target · <span style="color:#8cf29c;">▲ 12%</span></div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span class="metric-dot.blue"></span>Active Sensors
+        </div>
+        <div class="metric-value">30M+</div>
+        <div class="metric-sub">(Smartphones)</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span class="metric-dot.red"></span>Thermal Wall Output
+        </div>
+        <div class="metric-value">---</div>
+        <div class="metric-sub">Calibrating…</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">
+          <span class="metric-dot.green"></span>Real‑time Audits
+        </div>
+        <div class="metric-value">5,34/min</div>
+        <div class="metric-sub">Last 60 seconds</div>
+      </div>
+    </aside>
+
+    <!-- Center map & charts -->
+    <main class="center-area">
+      <div id="map"></div>
+
+      <div class="map-overlay-title">
+        Delhi · Live Kinetic Harvest Nodes
+      </div>
+
+      <div class="bottom-panel">
+        <div>
+          <div class="bottom-card-title">Energy Type Distribution</div>
+          <div class="chart-container">
+            <canvas id="energyChart"></canvas>
+          </div>
+        </div>
+        <div>
+          <div class="bottom-card-title">Rajiv Chowk Kinetic Uptick (Last 24h)</div>
+          <div class="chart-container">
+            <canvas id="uptickChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right panel -->
+    <aside class="right-panel">
+      <div class="session-preview">
+        Session video / image placeholder
+      </div>
+
+      <div class="session-header">
+        <div>
+          <div class="session-title">Session Score</div>
+          <div class="session-sub">Completeness Score</div>
+        </div>
+        <div class="session-sub">Today · Rajiv Chowk Metro</div>
+      </div>
+
+      <div class="score-row">
+        <div class="score-pill">
+          <div class="score-label">Harvest Potential</div>
+          <div class="score-value">92%</div>
+          <div class="score-tag">Kinetic Vibration</div>
+        </div>
+        <div class="score-pill">
+          <div class="score-label">Dominant Vibrational</div>
+          <div class="score-value">88%</div>
+          <div class="score-tag">Torsal</div>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <div>Comfort Index: 8.7/10 · 15 Hz</div>
+        <div>Confidence Score: 8.7/10 (High)</div>
+      </div>
+
+      <div class="verification-section">
+        <div class="verification-title">Verification Layers (Why Trust Readings?)</div>
+        <ol class="verification-list">
+          <li>Crowd consensus within 55 m unique device radius.</li>
+          <li>Data filtered from motion spoof and static bias.</li>
+          <li>Physics engine verifies harvested power sufficiency.</li>
+        </ol>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn">&larr; Back to Dashboard (PDF)</button>
+        <button class="btn btn-primary">Download Report (PDF)</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
+
+<script>
+  // --- Leaflet map ---
+  const map = L.map("map", {
+    zoomControl: false,
+    attributionControl: false
+  }).setView([28.6139, 77.2090], 12);
+
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 18
+    }
+  ).addTo(map);
+
+  // Example colorful markers (dummy data)
+  const colors = ["#00e0ff", "#30e39a", "#ffb547", "#ff6b6b"];
+  const icon = (color) =>
+    L.divIcon({
+      html:
+        '<div style="width:14px;height:14px;border-radius:50%;background:' +
+        color +
+        ';box-shadow:0 0 0 4px rgba(0,0,0,0.45);"></div>',
+      className: ""
+    });
+
+  const samplePoints = [
+    [28.627, 77.216],
+    [28.64, 77.19],
+    [28.61, 77.23],
+    [28.59, 77.20],
+    [28.66, 77.24],
+    [28.60, 77.15],
+    [28.63, 77.18]
+  ];
+
+  samplePoints.forEach((p, i) => {
+    L.marker(p, { icon: icon(colors[i % colors.length]) }).addTo(map);
+  });
+
+  // --- Chart.js bar chart (Energy Type Distribution) ---
+  const energyCtx = document.getElementById("energyChart");
+  new Chart(energyCtx, {
+    type: "bar",
+    data: {
+      labels: ["1950", "1958", "1966", "1974", "1982", "1990", "1998"],
+      datasets: [
+        {
+          label: "Kinetic",
+          data: [22, 36, 48, 60, 55, 68, 82],
+          backgroundColor: "#5a8cff",
+          borderRadius: 6,
+          maxBarThickness: 16
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#101320",
+          borderColor: "#3c4270",
+          borderWidth: 1,
+          padding: 8
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: "#7e81a0",
+            font: { size: 10 }
+          }
+        },
+        y: {
+          grid: {
+            color: "rgba(120,130,170,0.25)",
+            drawBorder: false
+          },
+          ticks: {
+            color: "#7e81a0",
+            font: { size: 10 },
+            stepSize: 20
+          }
+        }
+      }
+    }
+  });
+
+  // --- Chart.js line chart (Rajiv Chowk Uptick) ---
+  const uptickCtx = document.getElementById("uptickChart");
+  const grad = uptickCtx.getContext("2d").createLinearGradient(0, 0, 0, 160);
+  grad.addColorStop(0, "rgba(90,140,255,0.5)");
+  grad.addColorStop(1, "rgba(90,140,255,0)");
+
+  new Chart(uptickCtx, {
+    type: "line",
+    data: {
+      labels: ["2019", "2020", "2021", "2022", "2023", "2024"],
+      datasets: [
+        {
+          label: "Kinetic Uptick",
+          data: [4, 5, 7, 9, 11, 14],
+          borderColor: "#5a8cff",
+          borderWidth: 2,
+          fill: true,
+          backgroundColor: grad,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHitRadius: 8
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#101320",
+          borderColor: "#3c4270",
+          borderWidth: 1,
+          padding: 8
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: "#7e81a0",
+            font: { size: 10 }
+          }
+        },
+        y: {
+          grid: {
+            color: "rgba(120,130,170,0.25)",
+            drawBorder: false
+          },
+          ticks: {
+            color: "#7e81a0",
+            font: { size: 10 }
+          }
+        }
+      }
+    }
+  });
+</script>
+</body>
+</html>
